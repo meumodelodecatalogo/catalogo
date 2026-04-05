@@ -1,0 +1,63 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: products
+// Document ID: auto-generated
+// Fields:
+//   - name: string (required) - The name of the product
+//   - description: string (optional) - The description of the product
+//   - price: number (required) - The price of the product
+//   - category: string (required) - The category of the product
+//   - imageUrl: string (required) - The image URL of the product
+//   - active: boolean (required) - Whether the product is active
+//   - tags: list (optional) - Tags for the product
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         request.auth.token.email == "codigosagrado123@gmail.com");
+    }
+
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.category is string && data.category.size() > 0 &&
+             data.imageUrl is string && data.imageUrl.size() > 0 &&
+             data.active is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /products/{productId} {
+      // Anyone can read active products
+      allow read: if resource.data.active == true || isAdmin();
+      
+      // Only admins can write products
+      allow create: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if isAdmin() && isValidProduct(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+  }
+}
